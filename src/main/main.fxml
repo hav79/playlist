@@ -53,7 +53,7 @@
                                           <Label text="Name" />
                                           <TextField fx:id="playlistName" prefHeight="26.0" prefWidth="213.0" GridPane.columnIndex="1" GridPane.columnSpan="2" />
                                           <Label text="Dir" GridPane.rowIndex="1" />
-                                          <TextField fx:id="playlistDir" editable="false" prefHeight="26.0" prefWidth="213.0" GridPane.columnIndex="1" GridPane.rowIndex="1" />
+                                          <ComboBox fx:id="playlistDir" maxWidth="1.7976931348623157E308" GridPane.columnIndex="1" GridPane.hgrow="ALWAYS" GridPane.rowIndex="1" />
                                           <Button fx:id="playlistDirButton" mnemonicParsing="false" onAction="#openPlaylistDir" text="Open" GridPane.columnIndex="2" GridPane.rowIndex="1" />
                                        </children>
                                     </GridPane>

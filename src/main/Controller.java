@@ -23,14 +23,16 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
+import java.util.stream.Stream;
 
 public class Controller {
 
     private static final Path MUSIC = Paths.get("/mnt/Data/Music2").toAbsolutePath().normalize();
-    public static final Path PLAYLIST = Paths.get("/mnt/Data/Music2/playlists").toAbsolutePath().normalize();
     public static final String PLAYLIST_NAME = "test.m3u";
 
-//    private Set<Path> selected = new HashSet<>();
+    public static final Path MUSIC_HISTORY = Paths.get("mdirhistory.cfg");
+    public static final Path PLAYLIST_HISTORY = Paths.get("pdirhistory.cfg");
+
     private final List<Path> selected = new ArrayList<>();
 
     @FXML
@@ -40,30 +42,41 @@ public class Controller {
     private TextField playlistName;
 
     @FXML
-    private TextField playlistDir;
-
-//    @FXML
-//    private Button musicDirButton;
+    private ComboBox<Path> playlistDir;
 
     @FXML
     private ComboBox<Path> musicDir;
 
-//    @FXML
-//    private Button playlistDirButton;
-
     @FXML
     private void initialize() {
-//        displayTreeView(Paths.get(".").toAbsolutePath().normalize().toString());
-        displayTreeView(MUSIC);
-        dirTree.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
-
-        playlistDir.setText(PLAYLIST.toString());
-        playlistName.setText(PLAYLIST_NAME);
-
-        musicDir.getItems().add(PLAYLIST);
+        loadMusicDirHistory();
         musicDir.getSelectionModel().selectFirst();
         musicDir.getSelectionModel().selectedItemProperty()
                 .addListener((observable, oldValue, newValue) -> displayTreeView(newValue));
+
+        loadPlaylistDirHistory();
+        playlistDir.getSelectionModel().selectFirst();
+
+        playlistName.setText(PLAYLIST_NAME);
+
+        displayTreeView(MUSIC);
+        dirTree.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+    }
+
+    private void loadPlaylistDirHistory() {
+        try (Stream<String> lines = Files.lines(PLAYLIST_HISTORY)) {
+            lines.forEach((line) -> playlistDir.getItems().add(Paths.get(line)));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void loadMusicDirHistory() {
+        try (Stream<String> lines = Files.lines(MUSIC_HISTORY)) {
+            lines.forEach((line) -> musicDir.getItems().add(Paths.get(line)));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @FXML
@@ -73,8 +86,8 @@ public class Controller {
         dialog.setInitialDirectory(musicDir.getSelectionModel().getSelectedItem().toFile());
         File result = dialog.showDialog(null);
         if (result != null) {
-            musicDir.getItems().add(result.toPath());
-            musicDir.getSelectionModel().select(result.toPath());
+            musicDir.getItems().add(0, result.toPath());
+            musicDir.getSelectionModel().selectFirst();
         }
     }
 
@@ -84,25 +97,15 @@ public class Controller {
         dialog.setTitle("Select playlist directory");
         dialog.setInitialDirectory(musicDir.getSelectionModel().getSelectedItem().toFile());
         File result = dialog.showDialog(null);
-        if (result != null) {
-            playlistDir.setText(result.getAbsolutePath());
+        if (result != null){
+            playlistDir.getItems().add(0, result.toPath());
+            playlistDir.getSelectionModel().selectFirst();
         }
     }
 
-//    @FXML
-//    private void printSelected() {
-//        System.out.println("------Selected:");
-//        selected.forEach(System.out::println);
-////        System.out.println("----------");
-////        selected.forEach(
-////                (p -> System.out.println(PLAYLIST.relativize(p)))
-////        );
-//        System.out.println("----------");
-//    }
-
     @FXML
     private void createPlaylist() throws IOException {
-        Path playlist = Paths.get(playlistDir.getText(), playlistName.getText());
+        Path playlist = playlistDir.getValue().resolve(Path.of(playlistName.getText()));
         try (PrintWriter writer = new PrintWriter(playlist.toString())) {
             selected.forEach(path -> printTrackInfo(writer, path));
         }
@@ -120,18 +123,24 @@ public class Controller {
                     tag.getFirst(FieldKey.TRACK),
                     tag.getFirst(FieldKey.TITLE),
                     file.getAudioHeader().getFormat()));
-            writer.println(Paths.get(playlistDir.getText()).relativize(track).toString());
+            Path filename = playlistDir.getSelectionModel().getSelectedItem().relativize(track);
+            writer.println(filename.toString());
             writer.println();
 
         } catch (CannotReadException e) {
+            System.out.println("File read error");
             e.printStackTrace();
         } catch (IOException e) {
+            System.out.println("Input/Output error");
             e.printStackTrace();
         } catch (TagException e) {
+            System.out.println("Tag read error");
             e.printStackTrace();
         } catch (ReadOnlyFileException e) {
+            System.out.println("File is read only");
             e.printStackTrace();
         } catch (InvalidAudioFrameException e) {
+            System.out.println("Invalid audio frame");
             e.printStackTrace();
         }
     }
@@ -158,11 +167,9 @@ public class Controller {
     private ChangeListener<Boolean> getBooleanChangeListener(CheckBoxTreeItem<Path> item) {
         return (observable, oldValue, newValue) -> {
             if (newValue) {
-//                System.out.println(item.getValue() + " selected");
                 if (item.getValue().toString().endsWith(".flac"))
                     selected.add(item.getValue());
             } else {
-//                System.out.println(item.getValue() + " unselected");
                 selected.remove(item.getValue());
             }
         };
@@ -170,7 +177,6 @@ public class Controller {
 
     public void displayTreeView(Path rootPath) {
 
-//        Path rootPath = Paths.get(startDirectory);
         dirTree.setShowRoot(true);
 
         dirTree.setCellFactory(CheckBoxTreeCell.forTreeView(TreeItem::expandedProperty, new StringConverter<TreeItem<Path>>() {
@@ -185,5 +191,15 @@ public class Controller {
             }
         }));
         dirTree.setRoot(createTree(rootPath));
+    }
+
+    public void saveHistory() {
+        try (PrintWriter mWriter = new PrintWriter(MUSIC_HISTORY.toString());
+        PrintWriter pWriter = new PrintWriter(PLAYLIST_HISTORY.toString())) {
+            musicDir.getItems().forEach(mWriter::println);
+            playlistDir.getItems().forEach(pWriter::println);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
     }
 }
